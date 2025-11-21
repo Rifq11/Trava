@@ -153,7 +153,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     Navigator.pushReplacement(
                       context,
                       PageRouteBuilder(
-                        transitionDuration: const Duration(milliseconds: 650),
+                        transitionDuration: const Duration(milliseconds: 700),
                         pageBuilder: (_, animation, __) => const HomeScreen(),
                         transitionsBuilder: (_, animation, __, child) {
                           final curved = CurvedAnimation(
@@ -161,12 +161,19 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                             curve: Curves.easeInOutCubic,
                           );
 
-                          return FadeTransition(opacity: curved, child: child);
+                          final offsetAnimation = Tween<Offset>(
+                            begin: const Offset(2.0, 0.0),
+                            end: Offset.zero,
+                          ).animate(curved);
+
+                          return SlideTransition(
+                            position: offsetAnimation,
+                            child: child,
+                          );
                         },
                       ),
                     );
                   },
-
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.secondary,
                     shape: RoundedRectangleBorder(
