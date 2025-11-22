@@ -2,7 +2,13 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/trava_logo.dart';
 import '../../widgets/vector_background.dart';
+import '../../services/auth_service.dart';
+import '../../models/auth_model.dart';
+import '../../widgets/custom_snackbar.dart';
+import '../../utils/error_formatter.dart';
+import '../../services/profile_service.dart';
 import 'register_screen.dart';
+import '../home/home_screen.dart';
 import '../profile/complete_profile_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -16,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
-  bool _rememberMe = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -154,51 +160,30 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 16),
-
-                      Row(
-                        children: [
-                          Checkbox(
-                            value: _rememberMe,
-                            onChanged: (value) {
-                              setState(() {
-                                _rememberMe = value ?? false;
-                              });
-                            },
-                            activeColor: AppColors.primary,
-                            checkColor: Colors.white,
-                          ),
-                          const Text(
-                            'Remember Me',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-
                       const SizedBox(height: 32),
 
                       SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const CompleteProfileScreen(),
-                              ),
-                            );
-                          },
+                          onPressed: _isLoading ? null : _handleLogin,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.secondary,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
+                            disabledBackgroundColor: AppColors.textSecondary,
                           ),
-                          child: const Text(
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Text(
                             'Sign In',
                             style: TextStyle(
                               fontSize: 16,
@@ -256,5 +241,76 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleLogin() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      showCustomSnackBar(
+        context,
+        "Please fill in all fields",
+        isSuccess: false,
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final request = LoginRequest(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      await AuthService.login(request);
+
+      if (mounted) {
+        bool isProfileComplete = false;
+        try {
+          final profile = await ProfileService.getProfile();
+          isProfileComplete = profile.profile != null &&
+              profile.profile!.phone.isNotEmpty &&
+              profile.profile!.address.isNotEmpty &&
+              profile.profile!.birthDate.isNotEmpty;
+        } catch (e) {
+          isProfileComplete = false;
+        }
+
+        showCustomSnackBar(
+          context,
+          "Login successful!",
+          isSuccess: true,
+        );
+
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => isProfileComplete
+                    ? const HomeScreen()
+                    : const CompleteProfileScreen(),
+              ),
+            );
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = ErrorFormatter.format(e.toString());
+        showCustomSnackBar(
+          context,
+          errorMessage,
+          isSuccess: false,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 }

@@ -9,7 +9,7 @@ void showCustomSnackBar(
 }) {
   final overlay = Overlay.of(context);
   late OverlayEntry overlayEntry;
-  
+
   overlayEntry = OverlayEntry(
     builder: (context) => _AnimatedSnackBar(
       message: message,
@@ -62,23 +62,22 @@ class _AnimatedSnackBarState extends State<_AnimatedSnackBar>
       reverseDuration: const Duration(milliseconds: 300),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-      reverseCurve: Curves.easeIn,
-    ));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: Curves.easeOut,
+            reverseCurve: Curves.easeIn,
+          ),
+        );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-      reverseCurve: Curves.easeIn,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOut,
+        reverseCurve: Curves.easeIn,
+      ),
+    );
 
     _controller.forward();
   }
@@ -111,8 +110,8 @@ class _AnimatedSnackBarState extends State<_AnimatedSnackBar>
             color: widget.isSuccess
                 ? Colors.green
                 : widget.isError
-                    ? Colors.red
-                    : Colors.grey[800],
+                ? Colors.red
+                : Colors.grey[800],
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
@@ -121,8 +120,8 @@ class _AnimatedSnackBarState extends State<_AnimatedSnackBar>
                     widget.isSuccess
                         ? Icons.check_circle
                         : widget.isError
-                            ? Icons.error
-                            : Icons.info,
+                        ? Icons.error
+                        : Icons.info,
                     color: Colors.white,
                     size: 24,
                   ),
@@ -154,4 +153,3 @@ class _AnimatedSnackBarState extends State<_AnimatedSnackBar>
     );
   }
 }
-

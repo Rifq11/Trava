@@ -79,10 +79,10 @@ class CustomBottomBar extends StatelessWidget {
               index == 0
                   ? Icons.home
                   : index == 1
-                      ? Icons.location_on
-                      : index == 2
-                          ? Icons.card_travel
-                          : Icons.person,
+                  ? Icons.location_on
+                  : index == 2
+                  ? Icons.card_travel
+                  : Icons.person,
               size: 28,
             );
           }
@@ -91,4 +91,3 @@ class CustomBottomBar extends StatelessWidget {
     );
   }
 }
-

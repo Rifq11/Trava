@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/api_config.dart';
+import '../../services/transportation_service.dart';
+import '../../services/review_service.dart';
+import '../../models/transportation_model.dart';
 import '../booking/choose_transportation_dialog.dart';
 
 class DetailDestinationScreen extends StatefulWidget {
@@ -16,6 +20,119 @@ class DetailDestinationScreen extends StatefulWidget {
 
 class _DetailDestinationScreenState extends State<DetailDestinationScreen> {
   int _guestCount = 1;
+  bool _isLoadingTransportations = false;
+  bool _isLoadingRating = false;
+  List<Transportation> _transportations = [];
+  double _averageRating = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTransportations();
+    _loadRating();
+  }
+
+  Future<void> _loadTransportations() async {
+    setState(() {
+      _isLoadingTransportations = true;
+    });
+
+    try {
+      final destinationId = widget.destination['id'] as int?;
+      if (destinationId != null) {
+        final transportations =
+            await TransportationService.getTransportationsByDestination(
+              destinationId,
+            );
+        setState(() {
+          _transportations = transportations;
+          _isLoadingTransportations = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingTransportations = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingTransportations = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadRating() async {
+    setState(() {
+      _isLoadingRating = true;
+    });
+
+    try {
+      final destinationId = widget.destination['id'] as int?;
+      if (destinationId != null) {
+        final reviews = await ReviewService.getDestinationReviews(
+          destinationId,
+        );
+        if (reviews.isNotEmpty) {
+          final totalRating = reviews.fold<double>(
+            0.0,
+            (sum, review) => sum + review.rating,
+          );
+          setState(() {
+            _averageRating = totalRating / reviews.length;
+            _isLoadingRating = false;
+          });
+        } else {
+          setState(() {
+            _averageRating = 0.0;
+            _isLoadingRating = false;
+          });
+        }
+      } else {
+        setState(() {
+          _averageRating = 0.0;
+          _isLoadingRating = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _averageRating = 0.0;
+          _isLoadingRating = false;
+        });
+      }
+    }
+  }
+
+  String _getTransportationIcon(int transportTypeId) {
+    switch (transportTypeId) {
+      case 1:
+        return "assets/icons/transportation/car.svg";
+      case 2:
+        return "assets/icons/transportation/bus.svg";
+      case 3:
+        return "assets/icons/transportation/plane.svg";
+      case 4:
+        return "assets/icons/transportation/ship.svg";
+      default:
+        return "assets/icons/transportation/car.svg";
+    }
+  }
+
+  String _getTransportationName(int transportTypeId) {
+    switch (transportTypeId) {
+      case 1:
+        return "Car";
+      case 2:
+        return "Bus";
+      case 3:
+        return "Airplane";
+      case 4:
+        return "Ship";
+      default:
+        return "Car";
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,10 +151,46 @@ class _DetailDestinationScreenState extends State<DetailDestinationScreen> {
                       bottomLeft: Radius.circular(50),
                       bottomRight: Radius.circular(50),
                     ),
-                    image: DecorationImage(
-                      image: AssetImage(widget.destination["image"]),
-                      fit: BoxFit.cover,
+                    color: Colors.grey[300],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(50),
+                      bottomRight: Radius.circular(50),
                     ),
+                    child:
+                        widget.destination["image"] != null &&
+                            widget.destination["image"].toString().isNotEmpty
+                        ? Image.network(
+                            '${ApiConfig.baseUrl.replaceAll('/api', '')}${widget.destination["image"]}',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[300],
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    size: 50,
+                                  ),
+                                ),
+                              );
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Container(
+                                color: Colors.grey[300],
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            },
+                          )
+                        : Container(
+                            color: Colors.grey[300],
+                            child: const Center(
+                              child: Icon(Icons.image_not_supported, size: 50),
+                            ),
+                          ),
                   ),
                 ),
                 Positioned.fill(
@@ -146,7 +299,9 @@ class _DetailDestinationScreenState extends State<DetailDestinationScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  widget.destination["rating"] ?? "4.9",
+                                  _isLoadingRating
+                                      ? "..."
+                                      : _averageRating.toStringAsFixed(1),
                                   style: GoogleFonts.roboto(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
@@ -174,7 +329,9 @@ class _DetailDestinationScreenState extends State<DetailDestinationScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              widget.destination["title"] ?? "Nusa Penida",
+                              widget.destination["name"] ??
+                                  widget.destination["title"] ??
+                                  "",
                               style: GoogleFonts.roboto(
                                 fontSize: 28,
                                 fontWeight: FontWeight.w700,
@@ -184,8 +341,9 @@ class _DetailDestinationScreenState extends State<DetailDestinationScreen> {
                           ),
                           const SizedBox(width: 12),
                           Text(
-                            widget.destination["price"] ??
-                                "Rp. 100.000 /person",
+                            widget.destination["price_per_person"] != null
+                                ? "Rp. ${widget.destination["price_per_person"].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} /person"
+                                : widget.destination["price"] ?? "",
                             style: GoogleFonts.roboto(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
@@ -209,18 +367,7 @@ class _DetailDestinationScreenState extends State<DetailDestinationScreen> {
                       const SizedBox(height: 12),
 
                       Text(
-                        "Nusa Penida is a stunning island located southeast of Bali, known for its dramatic cliffs, crystal-clear waters, and untouched natural landscapes.",
-                        style: GoogleFonts.roboto(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
-                          height: 1.5,
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      Text(
-                        "Famous for its iconic Kelingking Beach, turquoise lagoons, and vibrant marine life, the island offers a perfect escape for adventure seekers and nature lovers.",
+                        widget.destination["description"] ?? "",
                         style: GoogleFonts.roboto(
                           fontSize: 14,
                           color: AppColors.textSecondary,
@@ -241,32 +388,35 @@ class _DetailDestinationScreenState extends State<DetailDestinationScreen> {
 
                       const SizedBox(height: 16),
 
-                      GridView.count(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 2.5,
-                        children: [
-                          _buildTransportationItem(
-                            "assets/icons/transportation/car.svg",
-                            "Car",
-                          ),
-                          _buildTransportationItem(
-                            "assets/icons/transportation/bus.svg",
-                            "Bus",
-                          ),
-                          _buildTransportationItem(
-                            "assets/icons/transportation/plane.svg",
-                            "Airplane",
-                          ),
-                          _buildTransportationItem(
-                            "assets/icons/transportation/ship.svg",
-                            "Ship",
-                          ),
-                        ],
-                      ),
+                      _isLoadingTransportations
+                          ? const Center(child: CircularProgressIndicator())
+                          : _transportations.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No transportation available',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            )
+                          : GridView.count(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisCount: 3,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              childAspectRatio: 2.5,
+                              children: _transportations.map((transport) {
+                                return _buildTransportationItem(
+                                  _getTransportationIcon(
+                                    transport.transportTypeId,
+                                  ),
+                                  _getTransportationName(
+                                    transport.transportTypeId,
+                                  ),
+                                );
+                              }).toList(),
+                            ),
 
                       const SizedBox(height: 100),
                     ],
@@ -292,11 +442,6 @@ class _DetailDestinationScreenState extends State<DetailDestinationScreen> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Get travelDate and returnDate from API
-                    // For now, using placeholder dates
-                    final travelDate = DateTime.now().add(const Duration(days: 7));
-                    final returnDate = DateTime.now().add(const Duration(days: 14));
-                    
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
@@ -304,8 +449,6 @@ class _DetailDestinationScreenState extends State<DetailDestinationScreen> {
                       builder: (context) => ChooseTransportationDialog(
                         destination: widget.destination,
                         guestCount: _guestCount,
-                        travelDate: travelDate,
-                        returnDate: returnDate,
                       ),
                     );
                   },

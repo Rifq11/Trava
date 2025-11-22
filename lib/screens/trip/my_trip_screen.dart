@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/bottom_bar/custom_bottom_bar.dart';
+import '../../services/booking_service.dart';
+import '../../models/booking_model.dart';
+import '../../utils/api_config.dart';
+import '../../widgets/custom_snackbar.dart';
+import '../../utils/error_formatter.dart';
 import '../home/home_screen.dart';
 import '../destination/destination_screen.dart';
 import '../booking/booking_screen.dart';
 import '../destination/detail_destination_screen.dart';
 import '../booking/review_screen.dart';
 import '../profile/profile_screen.dart';
+import '../../services/destination_service.dart';
 
 class MyTripScreen extends StatefulWidget {
   const MyTripScreen({super.key});
@@ -20,67 +26,151 @@ class _MyTripScreenState extends State<MyTripScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _currentBottomNavIndex = 2; // 2 = My Trip
+  bool _isLoading = false;
 
-  final List<Map<String, dynamic>> ongoingOrders = [
-    {
-      "id": 1,
-      "image": "assets/images/preview_1.png",
-      "location": "Bali, Indonesia",
-      "title": "Nusa Penida",
-      "guests": 2,
-      "price": "Rp. 1.200.000",
-      "status": "Pending",
-      "statusColor": Colors.orange,
-    },
-    {
-      "id": 2,
-      "image": "assets/images/preview_2.png",
-      "location": "Jawa Tengah, Indonesia",
-      "title": "Gunung Bromo",
-      "guests": 3,
-      "price": "Rp. 1.500.000",
-      "status": "Pending",
-      "statusColor": Colors.orange,
-    },
-  ];
-
-  final List<Map<String, dynamic>> historyOrders = [
-    {
-      "id": 1,
-      "image": "assets/images/preview_1.png",
-      "location": "Bali, Indonesia",
-      "title": "Nusa Penida",
-      "guests": 2,
-      "price": "Rp. 1.200.000",
-      "status": "Canceled",
-      "statusColor": Colors.black,
-    },
-    {
-      "id": 2,
-      "image": "assets/images/preview_2.png",
-      "location": "Bali, Indonesia",
-      "title": "Nusa Penida",
-      "guests": 2,
-      "price": "Rp. 1.200.000",
-      "status": "Completed",
-      "statusColor": Colors.blue,
-    },
-    {
-      "id": 3,
-      "image": "assets/images/preview_3.png",
-      "location": "Bali, Indonesia",
-      "title": "Nusa Penida",
-      "guests": 2,
-      "price": "Rp. 1.200.000",
-      "status": "Completed",
-      "statusColor": Colors.blue,
-    },
-  ];
+  List<BookingResponse> _ongoingOrders = [];
+  List<BookingResponse> _historyOrders = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadBookings();
+  }
+
+  Future<void> _handleCancelBooking(int bookingId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          "Cancel Booking",
+          style: GoogleFonts.roboto(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          "Are you sure you want to cancel this booking?",
+          style: GoogleFonts.roboto(
+            fontSize: 16,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              "No",
+              style: GoogleFonts.roboto(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              "Yes",
+              style: GoogleFonts.roboto(
+                color: AppColors.secondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await BookingService.cancelBooking(bookingId);
+      if (mounted) {
+        showCustomSnackBar(
+          context,
+          "Booking canceled successfully",
+          isSuccess: true,
+        );
+        _loadBookings();
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = ErrorFormatter.format(e.toString());
+        showCustomSnackBar(
+          context,
+          errorMessage,
+          isSuccess: false,
+        );
+      }
+    }
+  }
+
+  Future<void> _navigateToDetailDestination(BookingResponse order) async {
+    try {
+      final destination = await DestinationService.getDestinationById(order.destinationId);
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailDestinationScreen(
+              destination: {
+                "id": destination.id,
+                "image": destination.image,
+                "location": destination.location,
+                "name": destination.name,
+                "title": destination.name,
+                "price_per_person": destination.pricePerPerson,
+                "description": destination.description,
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = ErrorFormatter.format(e.toString());
+        showCustomSnackBar(
+          context,
+          errorMessage,
+          isSuccess: false,
+        );
+      }
+    }
+  }
+
+
+  Future<void> _loadBookings() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final bookings = await BookingService.getMyBookings();
+      setState(() {
+        _ongoingOrders = bookings.where((b) {
+          final status = b.statusName.toLowerCase();
+          return status == 'pending' || 
+                 status == 'approved';
+        }).toList();
+        _historyOrders = bookings.where((b) {
+          final status = b.statusName.toLowerCase();
+          return status == 'completed' || 
+                 status == 'canceled' || 
+                 status == 'rejected';
+        }).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        final errorMessage = ErrorFormatter.format(e.toString());
+        showCustomSnackBar(
+          context,
+          errorMessage,
+          isSuccess: false,
+        );
+      }
+    }
   }
 
   @override
@@ -89,7 +179,27 @@ class _MyTripScreenState extends State<MyTripScreen>
     super.dispose();
   }
 
-  Widget _buildOrderCard(Map<String, dynamic> order, {bool isOngoing = false}) {
+  Widget _buildOrderCard(BookingResponse order, {bool isOngoing = false}) {
+    Color statusColor;
+    switch (order.statusName.toLowerCase()) {
+      case 'pending':
+        statusColor = Colors.orange;
+        break;
+      case 'completed':
+        statusColor = Colors.blue;
+        break;
+      case 'canceled':
+        statusColor = Colors.black;
+        break;
+      default:
+        statusColor = Colors.grey;
+    }
+
+    final priceFormatted = "Rp. ${order.totalPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
+
+    final imageUrl = order.destinationImage != null && order.destinationImage!.isNotEmpty
+        ? '${ApiConfig.baseUrl.replaceAll('/api', '')}${order.destinationImage}'
+        : null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(40),
       child: Container(
@@ -120,48 +230,29 @@ class _MyTripScreenState extends State<MyTripScreen>
                               MaterialPageRoute(
                                 builder: (context) => BookingScreen(
                                   destination: {
-                                    "image": order["image"],
-                                    "location": order["location"],
-                                    "title": order["title"],
-                                    "rating": "4.9",
-                                    "price": order["price"],
+                                    "id": order.destinationId,
+                                    "image": order.destinationImage ?? "",
+                                    "location": order.location,
+                                    "name": order.destinationName,
+                                    "title": order.destinationName,
+                                    "price_per_person": order.destinationPrice ~/ order.peopleCount, // price x person
                                   },
                                   transportation: {
-                                    "icon":
-                                        "assets/icons/transportation/car.svg",
+                                    "icon": "assets/icons/transportation/car.svg",
                                     "name": "Car",
                                     "estimation": "3 days",
-                                    "price": "Rp. 1.000.000",
+                                    "price": order.transportPrice,
                                   },
-                                  travelDate: DateTime.now().add(
-                                    const Duration(days: 7),
-                                  ),
-                                  returnDate: DateTime.now().add(
-                                    const Duration(days: 14),
-                                  ),
-                                  guestCount: order["guests"],
+                                  travelDate: DateTime.parse(order.startDate),
+                                  returnDate: DateTime.parse(order.endDate),
+                                  guestCount: order.peopleCount,
                                   isViewOnly: true,
-                                  selectedPaymentMethod: "Credit Card", // TODO: Get from API
+                                  selectedPaymentMethod: order.paymentMethodName,
                                 ),
                               ),
                             );
                           } else {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => DetailDestinationScreen(
-                                  destination: {
-                                    "image": order["image"],
-                                    "location": order["location"],
-                                    "title": order["title"],
-                                    "rating": "4.9",
-                                    "price": order["price"],
-                                    "description":
-                                        "Beautiful destination with amazing views",
-                                  },
-                                ),
-                              ),
-                            );
+                            _navigateToDetailDestination(order);
                           }
                         },
                         child: Container(
@@ -172,10 +263,10 @@ class _MyTripScreenState extends State<MyTripScreen>
                               bottomRight: Radius.circular(40),
                             ),
                           ),
-                          alignment: !isOngoing && order["status"] == "Canceled"
+                          alignment: !isOngoing && (order.statusName.toLowerCase() == "canceled" || order.statusName.toLowerCase() == "rejected")
                               ? Alignment.bottomCenter
                               : Alignment.bottomLeft,
-                          padding: !isOngoing && order["status"] == "Canceled"
+                          padding: !isOngoing && (order.statusName.toLowerCase() == "canceled" || order.statusName.toLowerCase() == "rejected")
                               ? const EdgeInsets.only(bottom: 22)
                               : const EdgeInsets.only(left: 64, bottom: 22),
                           child: Text(
@@ -190,7 +281,7 @@ class _MyTripScreenState extends State<MyTripScreen>
                       ),
                     ),
 
-                    if (!isOngoing && order["status"] != "Canceled")
+                    if (!isOngoing && order.statusName.toLowerCase() != "canceled" && order.statusName.toLowerCase() != "rejected")
                       Positioned(
                         right: 0,
                         bottom: 0,
@@ -202,34 +293,40 @@ class _MyTripScreenState extends State<MyTripScreen>
                             bottomRight: Radius.circular(40),
                             bottomLeft: Radius.circular(40),
                           ),
-                          onTap: () {
+                          onTap: () async {
+                            final pricePerPerson = order.peopleCount > 0 
+                                ? order.destinationPrice ~/ order.peopleCount 
+                                : 0;
+                            
+                            final transportPriceFormatted = "Rp. ${order.transportPrice.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
+                            
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => ReviewScreen(
                                   destination: {
-                                    "image": order["image"],
-                                    "location": order["location"],
-                                    "title": order["title"],
-                                    "rating": "4.9",
-                                    "price": order["price"],
+                                    "id": order.bookingId,
+                                    "destination_id": order.destinationId,
+                                    "image": order.destinationImage ?? "",
+                                    "location": order.location,
+                                    "name": order.destinationName,
+                                    "title": order.destinationName,
+                                    "price_per_person": pricePerPerson,
                                   },
                                   transportation: {
-                                    "icon":
-                                        "assets/icons/transportation/car.svg",
+                                    "icon": "assets/icons/transportation/car.svg",
                                     "name": "Car",
                                     "estimation": "4 Hari Perjalanan",
-                                    "price": "Rp. 1.000.000",
+                                    "price": transportPriceFormatted,
+                                    "transport_price": order.transportPrice,
                                   },
-                                  travelDate: DateTime.now().add(
-                                    const Duration(days: 7),
-                                  ),
-                                  returnDate: DateTime.now().add(
-                                    const Duration(days: 14),
-                                  ),
-                                  guestCount: order["guests"],
-                                  selectedPaymentMethod: "Transfer Bank",
-                                  userName: "Salmah Nadya Safitri",
+                                  travelDate: DateTime.parse(order.startDate),
+                                  returnDate: DateTime.parse(order.endDate),
+                                  guestCount: order.peopleCount,
+                                  selectedPaymentMethod: order.paymentMethodName,
+                                  destinationPrice: order.destinationPrice,
+                                  transportPrice: order.transportPrice,
+                                  userName: "",
                                 ),
                               ),
                             );
@@ -268,8 +365,8 @@ class _MyTripScreenState extends State<MyTripScreen>
                             bottomRight: Radius.circular(40),
                             bottomLeft: Radius.circular(40),
                           ),
-                          onTap: () {
-                            // TODO: Handle Cancel Booking
+                          onTap: () async {
+                            _handleCancelBooking(order.bookingId);
                           },
                           child: Container(
                             height: 100,
@@ -306,7 +403,34 @@ class _MyTripScreenState extends State<MyTripScreen>
                 height: 220,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(40),
-                  child: Image.asset(order["image"], fit: BoxFit.cover),
+                  child: imageUrl != null
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: Icon(Icons.image_not_supported, size: 50),
+                              ),
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: Colors.grey[300],
+                          child: const Center(
+                            child: Icon(Icons.image_not_supported, size: 50),
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -324,11 +448,11 @@ class _MyTripScreenState extends State<MyTripScreen>
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  order["status"],
+                            order.statusName,
                   style: GoogleFonts.roboto(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: order["statusColor"],
+                              color: statusColor,
                   ),
                 ),
               ),
@@ -359,7 +483,7 @@ class _MyTripScreenState extends State<MyTripScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            order["location"],
+                            order.location,
                             style: GoogleFonts.roboto(
                               fontSize: 13,
                               color: Colors.grey,
@@ -367,7 +491,7 @@ class _MyTripScreenState extends State<MyTripScreen>
                           ),
                         ),
                         Text(
-                          "${order["guests"]} orang",
+                          "${order.peopleCount} orang",
                           style: GoogleFonts.roboto(
                             fontSize: 13,
                             color: Colors.grey,
@@ -381,7 +505,7 @@ class _MyTripScreenState extends State<MyTripScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            order["title"],
+                            order.destinationName,
                             style: GoogleFonts.roboto(
                               fontSize: 22,
                               fontWeight: FontWeight.w700,
@@ -390,7 +514,7 @@ class _MyTripScreenState extends State<MyTripScreen>
                           ),
                         ),
                         Text(
-                          order["price"],
+                          priceFormatted,
                           style: GoogleFonts.roboto(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -489,10 +613,12 @@ class _MyTripScreenState extends State<MyTripScreen>
             ),
 
             Expanded(
-              child: TabBarView(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : TabBarView(
                 controller: _tabController,
                 children: [
-                  ongoingOrders.isEmpty
+                        _ongoingOrders.isEmpty
                       ? Center(
                           child: Text(
                             "No ongoing orders",
@@ -504,16 +630,15 @@ class _MyTripScreenState extends State<MyTripScreen>
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.all(24),
-                          itemCount: ongoingOrders.length,
+                                itemCount: _ongoingOrders.length,
                           itemBuilder: (context, index) {
                             return _buildOrderCard(
-                              ongoingOrders[index],
+                                    _ongoingOrders[index],
                               isOngoing: true,
                             );
                           },
                         ),
-
-                  historyOrders.isEmpty
+                  _historyOrders.isEmpty
                       ? Center(
                           child: Text(
                             "No order history",
@@ -525,9 +650,9 @@ class _MyTripScreenState extends State<MyTripScreen>
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.all(24),
-                          itemCount: historyOrders.length,
+                                itemCount: _historyOrders.length,
                           itemBuilder: (context, index) {
-                            return _buildOrderCard(historyOrders[index]);
+                                  return _buildOrderCard(_historyOrders[index]);
                           },
                         ),
                 ],

@@ -3,6 +3,11 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/custom_snackbar.dart';
+import '../../services/review_service.dart';
+import '../../services/profile_service.dart';
+import '../../models/review_model.dart';
+import '../../utils/api_config.dart';
+import '../../utils/error_formatter.dart';
 
 class ReviewScreen extends StatefulWidget {
   final Map<String, dynamic> destination;
@@ -12,6 +17,8 @@ class ReviewScreen extends StatefulWidget {
   final int guestCount;
   final String? selectedPaymentMethod;
   final String? userName;
+  final int? destinationPrice;
+  final int? transportPrice;
 
   const ReviewScreen({
     super.key,
@@ -22,6 +29,8 @@ class ReviewScreen extends StatefulWidget {
     required this.guestCount,
     this.selectedPaymentMethod,
     this.userName,
+    this.destinationPrice,
+    this.transportPrice,
   });
 
   @override
@@ -31,40 +40,75 @@ class ReviewScreen extends StatefulWidget {
 class _ReviewScreenState extends State<ReviewScreen> {
   int _rating = 0;
   final TextEditingController _reviewController = TextEditingController();
+  bool _isLoading = false;
+  String _userName = "";
+  int? _bookingId;
+  double _averageRating = 0.0;
+  bool _isLoadingRating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserName();
+    _loadRating();
+    if (widget.destination.containsKey('id')) {
+      _bookingId = widget.destination['id'] as int?;
+      _loadExistingReview();
+    }
+  }
+
+  Future<void> _loadExistingReview() async {
+    if (_bookingId == null) return;
+    try {
+      final review = await ReviewService.getReviewByBookingId(_bookingId!);
+      if (review != null && mounted) {
+        setState(() {
+          _rating = review.rating;
+          _reviewController.text = review.reviewText;
+        });
+      }
+    } catch (e) {}
+  }
+
+  Future<void> _loadRating() async {
+    setState(() => _isLoadingRating = true);
+    try {
+      final destinationId = widget.destination['destination_id'] as int?;
+      if (destinationId != null) {
+        final reviews = await ReviewService.getDestinationReviews(destinationId);
+        if (reviews.isNotEmpty) {
+          final totalRating =
+              reviews.fold<double>(0.0, (sum, review) => sum + review.rating);
+          setState(() => _averageRating = totalRating / reviews.length);
+        } else {
+          setState(() => _averageRating = 0.0);
+        }
+      } else {
+        setState(() => _averageRating = 0.0);
+      }
+    } catch (e) {
+      setState(() => _averageRating = 0.0);
+    } finally {
+      if (mounted) setState(() => _isLoadingRating = false);
+    }
+  }
+
+  Future<void> _loadUserName() async {
+    try {
+      final profile = await ProfileService.getProfile();
+      if (mounted) setState(() => _userName = profile.user.fullName);
+    } catch (e) {
+      if (mounted) setState(() => _userName = widget.userName ?? '');
+    }
+  }
 
   String _formatDate(DateTime date) {
-    final weekdays = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday'
-    ];
-    final months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December'
+    const months = [
+      'January','February','March','April','May','June',
+      'July','August','September','October','November','December'
     ];
 
-    final weekday = weekdays[date.weekday - 1];
-    final day = date.day;
-    final month = months[date.month - 1];
-    final year = date.year;
-    final hour = date.hour.toString().padLeft(2, '0');
-    final minute = date.minute.toString().padLeft(2, '0');
-
-    return "$weekday, $day $month $year, $hour:$minute";
+    return "${date.day} ${months[date.month - 1]} ${date.year}";
   }
 
   @override
@@ -95,10 +139,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     child: Transform(
                       alignment: Alignment.center,
                       transform: Matrix4.rotationY(3.14159),
-                      child: SvgPicture.asset(
-                        "assets/icons/arrow_next.svg",
-                        width: 34,
-                      ),
+                      child: SvgPicture.asset("assets/icons/arrow_next.svg", width: 34),
                     ),
                   ),
                   Expanded(
@@ -120,137 +161,129 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
             Expanded(
               child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 60,
-                            height: 3,
-                            margin: const EdgeInsets.only(bottom: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(2),
+                    const SizedBox(height: 20),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        return GestureDetector(
+                          onTap: () => setState(() => _rating = index + 1),
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Icon(
+                              index < _rating ? Icons.star : Icons.star_border,
+                              color: Colors.amber,
+                              size: 40,
                             ),
                           ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                "Your ",
-                                style: GoogleFonts.roboto(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              Text(
-                                "Review",
-                                style: GoogleFonts.roboto(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                              Text(
-                                " Matters",
-                                style: GoogleFonts.roboto(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 16),
 
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(5, (index) {
-                              return GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _rating = index + 1;
-                                  });
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: Icon(
-                                    index < _rating
-                                        ? Icons.star
-                                        : Icons.star_border,
-                                    color: index < _rating
-                                        ? Colors.amber
-                                        : Colors.grey,
-                                    size: 40,
-                                  ),
-                                ),
-                              );
-                            }),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: TextField(
+                        controller: _reviewController,
+                        maxLines: 6,
+                        decoration: InputDecoration(
+                          hintText: "Tell us about your journey",
+                          hintStyle: GoogleFonts.roboto(
+                            fontSize: 16,
+                            color: AppColors.textSecondary,
                           ),
-                          const SizedBox(height: 16),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                      ),
+                    ),
 
-                          Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: TextField(
-                              controller: _reviewController,
-                              maxLines: 6,
-                              decoration: InputDecoration(
-                                hintText: "Tell us about your journey",
-                                hintStyle: GoogleFonts.roboto(
-                                  fontSize: 16,
-                                  color: AppColors.textSecondary,
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.all(16),
-                              ),
-                              style: GoogleFonts.roboto(
-                                fontSize: 16,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: () {
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () async {
+                                FocusScope.of(context).unfocus();
+
                                 if (_rating == 0) {
-                                  showCustomSnackBar(
-                                    context,
-                                    "Please select a rating",
-                                    isError: true,
-                                  );
+                                  showCustomSnackBar(context, "Please select a rating",
+                                      isError: true);
                                   return;
                                 }
-                                // TODO: Save review to API
-                                showCustomSnackBar(
-                                  context,
-                                  "Review saved successfully!",
-                                  isSuccess: true,
-                                );
-                                Future.delayed(const Duration(milliseconds: 200), () {
+
+                                if (_bookingId == null) {
+                                  showCustomSnackBar(context, "Booking ID not found",
+                                      isError: true);
+                                  return;
+                                }
+
+                                setState(() => _isLoading = true);
+
+                                try {
+                                  final request = CreateReviewRequest(
+                                    bookingId: _bookingId!,
+                                    rating: _rating,
+                                    reviewText: _reviewController.text.trim(),
+                                  );
+
+                                  await ReviewService.createReview(request);
+
                                   if (mounted) {
-                                    Navigator.pop(context);
+                                    showCustomSnackBar(
+                                      context,
+                                      "Review saved successfully!",
+                                      isSuccess: true,
+                                    );
+                                    Future.delayed(const Duration(milliseconds: 500), () {
+                                      if (mounted) Navigator.pop(context);
+                                    });
                                   }
-                                });
+
+                                } catch (e, stackTrace) {
+                                  debugPrint("Error saving review: $e");
+                                  debugPrint("Stacktrace: $stackTrace");
+
+                                  if (mounted) {
+                                    final msg = ErrorFormatter.format(e.toString());
+                                    showCustomSnackBar(
+                                      context,
+                                      msg,
+                                      isError: true,
+                                    );
+                                  }
+
+                                } finally {
+                                  if (mounted) setState(() => _isLoading = false);
+                                }
                               },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.secondary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.secondary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(Colors.white),
                                 ),
-                              ),
-                              child: Text(
+                              )
+                            : Text(
                                 "Save Review",
                                 style: GoogleFonts.roboto(
                                   fontSize: 16,
@@ -258,284 +291,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                   color: Colors.white,
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                        ],
                       ),
                     ),
 
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Booking Info",
-                            style: GoogleFonts.roboto(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 32),
-                            child: Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Container(
-                                  height: 280,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(32),
-                                    image: DecorationImage(
-                                      image: AssetImage(widget.destination["image"]),
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  bottom: 28,
-                                  left: 16,
-                                  right: 16,
-                                  child: Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(18),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(32),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              widget.destination["location"],
-                                              style: valueStyle.copyWith(fontSize: 14),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    widget.destination["title"],
-                                                    style: GoogleFonts.roboto(
-                                                      fontSize: 22,
-                                                      fontWeight: FontWeight.w700,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Text(
-                                                  widget.destination["price"],
-                                                  style: GoogleFonts.roboto(
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: -14,
-                                        right: 20,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(0.85),
-                                            borderRadius: BorderRadius.circular(20),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(
-                                                Icons.star,
-                                                color: Colors.amber,
-                                                size: 16,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                widget.destination["rating"] ?? "4.9",
-                                                style: GoogleFonts.roboto(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                        ],
-                      ),
-                    ),
-
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "General Info",
-                            style: GoogleFonts.roboto(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          _labelBox(
-                            label: "Name",
-                            child: Text(
-                              widget.userName ?? "Salmah Nadya Safitri",
-                              style: valueStyle,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          _labelBox(
-                            label: "Travel Date",
-                            child: Row(
-                              children: [
-                                const Icon(Icons.calendar_today, size: 18),
-                                const SizedBox(width: 12),
-                                Text(
-                                  _formatDate(widget.travelDate),
-                                  style: valueStyle,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          _labelBox(
-                            label: "Return Date",
-                            child: Row(
-                              children: [
-                                const Icon(Icons.calendar_today, size: 18),
-                                const SizedBox(width: 12),
-                                Text(
-                                  _formatDate(widget.returnDate),
-                                  style: valueStyle,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          _labelBox(
-                            label: "Transportation",
-                            child: Row(
-                              children: [
-                                SvgPicture.asset(
-                                  widget.transportation["icon"],
-                                  width: 24,
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  widget.transportation["name"],
-                                  style: valueStyle,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _labelBox(
-                                  label: "Estimation",
-                                  child: Text(
-                                    widget.transportation["estimation"] ?? "4 Hari Perjalanan",
-                                    style: valueStyle,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _labelBox(
-                                  label: "Transportation Price",
-                                  child: Text(
-                                    widget.transportation["price"],
-                                    style: valueStyle,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _labelBox(
-                                  label: "Number of Guest",
-                                  child: Text(
-                                    "${widget.guestCount} Orang",
-                                    style: valueStyle,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _labelBox(
-                                  label: "Destination Price",
-                                  child: Text(
-                                    widget.destination["price"],
-                                    style: valueStyle,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          _labelBox(
-                            label: "Payment Method",
-                            child: Row(
-                              children: [
-                                SvgPicture.asset(
-                                  "assets/icons/payment.svg",
-                                  width: 24,
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  widget.selectedPaymentMethod ?? "Transfer Bank",
-                                  style: valueStyle,
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          Center(
-                            child: SvgPicture.asset(
-                              "assets/icons/trava_logo.svg",
-                              width: 100,
-                              height: 40,
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                        ],
-                      ),
-                    ),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -545,36 +304,4 @@ class _ReviewScreenState extends State<ReviewScreen> {
       ),
     );
   }
-
-  Widget _labelBox({required String label, required Widget child}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.roboto(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        _capsule(child: child),
-      ],
-    );
-  }
-
-  Widget _capsule({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: child,
-    );
-  }
-
 }
-

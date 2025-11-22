@@ -4,10 +4,16 @@ import '../../theme/app_colors.dart';
 import '../../widgets/bottom_bar/custom_bottom_bar.dart';
 import '../../widgets/profile_avatar_icon.dart';
 import '../../widgets/vector_background.dart';
+import '../../services/profile_service.dart';
+import '../../services/auth_service.dart';
+import '../../widgets/custom_snackbar.dart';
+import '../../utils/error_formatter.dart';
+import '../../utils/api_config.dart';
 import '../home/home_screen.dart';
 import '../destination/destination_screen.dart';
 import '../trip/my_trip_screen.dart';
 import 'edit_profile_screen.dart';
+import '../../screens/auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -18,13 +24,65 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   int _currentBottomNavIndex = 3; // 3 = Profile
+  bool _isLoading = true;
 
-  // TODO: Fetch from API
-  final String _fullName = "Salmah Nadya Safitri";
-  final String _email = "salmah@gmail.com";
-  final String _birthDate = "28 September 2007";
-  final String _phone = "0812345678";
-  final String _address = "221B Baker Street, London, United Kingdom";
+  String _fullName = "";
+  String _email = "";
+  String _birthDate = "";
+  String _phone = "";
+  String _address = "";
+  String _userPhoto = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final profile = await ProfileService.getProfile();
+      setState(() {
+        _fullName = profile.user.fullName;
+        _email = profile.user.email;
+        if (profile.profile != null) {
+          // format date convert
+          if (profile.profile!.birthDate.isNotEmpty) {
+            try {
+              final dateTime = DateTime.parse(profile.profile!.birthDate);
+              final months = [
+                'January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'
+              ];
+              _birthDate = "${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}";
+            } catch (e) {
+              _birthDate = profile.profile!.birthDate;
+            }
+          }
+          _phone = profile.profile!.phone;
+          _address = profile.profile!.address;
+          _userPhoto = profile.profile!.userPhoto;
+        }
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        final errorMessage = ErrorFormatter.format(e.toString());
+        showCustomSnackBar(
+          context,
+          errorMessage,
+          isSuccess: false,
+        );
+      }
+    }
+  }
 
   void _handleBottomNavTap(int index) {
     if (index == _currentBottomNavIndex) return;
@@ -142,13 +200,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => const EditProfileScreen(),
                             ),
                           );
+                          // refresh
+                          if (result == true) {
+                            _loadProfile();
+                          }
                         },
                         child: const Icon(
                           Icons.edit_outlined,
@@ -175,12 +237,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               shape: BoxShape.circle,
                               color: Colors.grey.shade200,
                             ),
-                            child: const ProfileAvatarIcon(size: 64),
+                            child: _userPhoto.isNotEmpty
+                                ? ClipOval(
+                                    child: Image.network(
+                                      '${ApiConfig.baseUrl.replaceAll('/api', '')}$_userPhoto',
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return const ProfileAvatarIcon(size: 64);
+                                      },
+                                    ),
+                                  )
+                                : const ProfileAvatarIcon(size: 64),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      Text(
+                      _isLoading
+                          ? const CircularProgressIndicator()
+                          : Text(
                         _fullName,
                         style: GoogleFonts.roboto(
                           fontSize: 20,
@@ -200,10 +274,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 24),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: ElevatedButton(
-                          onPressed: () {
-                            // TODO: Handle logout
-                          },
+                        child:                       ElevatedButton(
+                        onPressed: _handleLogout,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color.fromARGB(
                               255,
@@ -251,5 +323,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await AuthService.logout();
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
   }
 }
