@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:trava/screens/preview_screen.dart';
+import 'preview_screen.dart';
 import '../widgets/trava_logo.dart';
 import '../theme/app_colors.dart';
 

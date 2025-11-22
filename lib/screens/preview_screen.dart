@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
-import 'login_screen.dart';
+import 'auth/login_screen.dart';
 
 class PreviewScreen extends StatefulWidget {
   const PreviewScreen({super.key});

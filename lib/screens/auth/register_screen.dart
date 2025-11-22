@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:trava/screens/login_screen.dart';
-import '../theme/app_colors.dart';
-import '../widgets/trava_logo.dart';
-import '../widgets/vector_background.dart';
+import 'login_screen.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/trava_logo.dart';
+import '../../widgets/vector_background.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
-import '../widgets/trava_logo.dart';
-import '../widgets/vector_background.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/trava_logo.dart';
+import '../../widgets/vector_background.dart';
 import 'register_screen.dart';
-import 'complete_profile_screen.dart';
+import '../profile/complete_profile_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

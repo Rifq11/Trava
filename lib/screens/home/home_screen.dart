@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_colors.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/bottom_bar/custom_bottom_bar.dart';
+import '../destination/destination_screen.dart';
+import '../destination/search_screen.dart';
+import '../trip/my_trip_screen.dart';
+import '../profile/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,6 +19,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentSlider = 0;
   int _selectedCategory = 0;
+  int _currentBottomNavIndex = 0; // 0 = home
 
   final List<String> categories = ["Beach", "Forest", "Mountain", "Waterfall"];
 
@@ -42,9 +48,43 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-
-      // bottomNavigationBar: _buildBottomNav(),
-
+      bottomNavigationBar: CustomBottomBar(
+        currentIndex: _currentBottomNavIndex,
+        onTap: (index) {
+          if (index == 1) {
+            Navigator.pushReplacement(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) => const DestinationScreen(),
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+              ),
+            );
+          } else if (index == 2) {
+            Navigator.pushReplacement(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) => const MyTripScreen(),
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+              ),
+            );
+          } else if (index == 3) {
+            Navigator.pushReplacement(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) => const ProfileScreen(),
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: Duration.zero,
+              ),
+            );
+          } else {
+            setState(() {
+              _currentBottomNavIndex = index;
+            });
+          }
+        },
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -60,18 +100,28 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       "Halo,\nSalmah Nadya Safitri!",
                       style: GoogleFonts.roboto(
-                        fontSize: 26,
+                        fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.surface,
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SearchScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.surface,
+                        ),
+                        child: const Icon(Icons.search, size: 24),
                       ),
-                      child: const Icon(Icons.search, size: 24),
                     ),
                   ],
                 ),
@@ -96,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       "Upcoming Tour",
                       style: GoogleFonts.roboto(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
                       ),
@@ -287,24 +337,4 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: const [
-          Icon(Icons.home, size: 28),
-          Icon(Icons.location_on_outlined, size: 28),
-          Icon(Icons.card_travel, size: 28),
-          Icon(Icons.person_outline, size: 28),
-        ],
-      ),
-    );
-  }
 }
