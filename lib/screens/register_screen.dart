@@ -157,14 +157,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onPressed: () {
                             Navigator.pushReplacement(
                               context,
-                              PageRouteBuilder(
-                                transitionDuration: const Duration(milliseconds: 650),
-                                reverseTransitionDuration: const Duration(milliseconds: 650),
-                                pageBuilder: (_, animation, __) => const LoginScreen(),
-                                transitionsBuilder: (_, animation, __, child) {
-                                  final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOutCubic);
-                                  return FadeTransition(opacity: curved, child: child);
-                                },
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(),
                               ),
                             );
                           },
@@ -192,12 +186,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       onTap: () {
                         Navigator.pushReplacement(
                           context,
-                          PageRouteBuilder(
-                            transitionDuration: const Duration(milliseconds: 650),
-                            pageBuilder: (_, animation, __) => const LoginScreen(),
-                            transitionsBuilder: (_, animation, __, child) {
-                              return FadeTransition(opacity: animation, child: child);
-                            },
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
                           ),
                         );
                       },

@@ -187,22 +187,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: () {
                             Navigator.pushReplacement(
                               context,
-                              PageRouteBuilder(
-                                transitionDuration: const Duration(
-                                  milliseconds: 600,
-                                ),
-                                pageBuilder: (_, animation, __) =>
-                                    const CompleteProfileScreen(),
-                                transitionsBuilder: (_, animation, __, child) {
-                                  final curved = CurvedAnimation(
-                                    parent: animation,
-                                    curve: Curves.easeInOutCubic,
-                                  );
-                                  return FadeTransition(
-                                    opacity: curved,
-                                    child: child,
-                                  );
-                                },
+                              MaterialPageRoute(
+                                builder: (context) => const CompleteProfileScreen(),
                               ),
                             );
                           },
@@ -248,22 +234,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       onTap: () {
                         Navigator.pushReplacement(
                           context,
-                          PageRouteBuilder(
-                            transitionDuration: const Duration(
-                              milliseconds: 700,
-                            ),
-                            pageBuilder: (_, animation, __) =>
-                                const RegisterScreen(),
-                            transitionsBuilder: (_, animation, __, child) {
-                              final curved = CurvedAnimation(
-                                parent: animation,
-                                curve: Curves.easeInOut,
-                              );
-                              return FadeTransition(
-                                opacity: curved,
-                                child: child,
-                              );
-                            },
+                          MaterialPageRoute(
+                            builder: (context) => const RegisterScreen(),
                           ),
                         );
                       },
