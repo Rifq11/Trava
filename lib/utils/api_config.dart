@@ -1,5 +1,5 @@
 class ApiConfig {
-  static const String baseUrl = 'http://192.168.50.1:8080/api'; // use ip to connect as local
+  static const String baseUrl = 'http://10.67.72.13:8080/api'; // use ip to connect as local
 
   // Auth
   static const String register = '/auth/register';
