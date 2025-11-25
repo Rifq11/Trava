@@ -153,7 +153,7 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 12,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
