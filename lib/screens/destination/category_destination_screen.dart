@@ -8,11 +8,12 @@ import '../../services/review_service.dart';
 import '../../models/destination_model.dart';
 import '../../utils/api_config.dart';
 import 'detail_destination_screen.dart';
+import 'search_screen.dart';
 
 class CategoryDestinationScreen extends StatefulWidget {
   final String category;
   final int? categoryId;
-  final String? categoryCount; // optional
+  final String? categoryCount;
 
   const CategoryDestinationScreen({
     super.key,
@@ -41,9 +42,7 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
   }
 
   Future<void> _loadDestinations() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final destinations = await DestinationService.getDestinationsByCategory(
@@ -56,11 +55,8 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
 
       _loadRatingsForDestinations(destinations);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
     }
   }
 
@@ -74,15 +70,10 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
         final reviews = await ReviewService.getDestinationReviews(
           destination.id,
         );
-        if (reviews.isNotEmpty) {
-          final totalRating = reviews.fold<double>(
-            0.0,
-            (sum, review) => sum + review.rating,
-          );
-          ratingsMap[destination.id] = totalRating / reviews.length;
-        } else {
-          ratingsMap[destination.id] = 0.0;
-        }
+        ratingsMap[destination.id] = reviews.isEmpty
+            ? 0.0
+            : reviews.fold<double>(0.0, (sum, r) => sum + r.rating) /
+                  reviews.length;
       } catch (e) {
         ratingsMap[destination.id] = 0.0;
       }
@@ -105,7 +96,6 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 24),
-
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
@@ -114,9 +104,7 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
                       onTap: () => Navigator.pop(context),
                       child: Transform(
                         alignment: Alignment.center,
-                        transform: Matrix4.rotationY(
-                          3.14159,
-                        ),
+                        transform: Matrix4.rotationY(3.14159),
                         child: SvgPicture.asset(
                           "assets/icons/arrow_next.svg",
                           width: 34,
@@ -145,33 +133,45 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
 
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search, color: AppColors.iconGray, size: 20),
-                      const SizedBox(width: 12),
-                      Text(
-                        "Search for your favorite place",
-                        style: GoogleFonts.roboto(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SearchScreen(
+                          categoryId: widget.categoryId,
+                          category: widget.category,
                         ),
                       ),
-                    ],
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.search, color: AppColors.iconGray, size: 20),
+                        const SizedBox(width: 12),
+                        Text(
+                          "Search for your favorite place",
+                          style: GoogleFonts.roboto(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
 
               const SizedBox(height: 32),
-
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
@@ -188,29 +188,25 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
 
               _isLoading
                   ? const Padding(
-                      padding: EdgeInsets.all(24.0),
+                      padding: EdgeInsets.all(24),
                       child: Center(child: CircularProgressIndicator()),
                     )
                   : _destinations.isEmpty
                   ? const Padding(
-                      padding: EdgeInsets.all(24.0),
-                      child: Center(child: Text('No destinations available')),
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: Text("No destinations available")),
                     )
                   : Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Column(
-                        children: _destinations
-                            .map(
-                              (destination) => Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
-                                child: _buildSearchResultCard(destination),
-                              ),
-                            )
-                            .toList(),
+                        children: _destinations.map((destination) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: _buildCard(destination),
+                          );
+                        }).toList(),
                       ),
                     ),
-
-              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -218,27 +214,25 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
     );
   }
 
-  Widget _buildSearchResultCard(Destination destination) {
+  Widget _buildCard(Destination destination) {
     final rating = _destinationRatings[destination.id] ?? 0.0;
 
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DetailDestinationScreen(
-              destination: {
-                'id': destination.id,
-                'name': destination.name,
-                'description': destination.description,
-                'location': destination.location,
-                'price_per_person': destination.pricePerPerson,
-                'image': destination.image,
-              },
-            ),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DetailDestinationScreen(
+            destination: {
+              'id': destination.id,
+              'name': destination.name,
+              'description': destination.description,
+              'location': destination.location,
+              'price_per_person': destination.pricePerPerson,
+              'image': destination.image,
+            },
           ),
-        );
-      },
+        ),
+      ),
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
@@ -247,103 +241,26 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
         ),
         child: Row(
           children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: destination.image.isNotEmpty
-                      ? Image.network(
-                          '${ApiConfig.baseUrl.replaceAll('/api', '')}${destination.image}',
-                          width: 80,
-                          height: 80,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 80,
-                              height: 80,
-                              color: Colors.grey[300],
-                              child: const Icon(
-                                Icons.image_not_supported,
-                                size: 30,
-                              ),
-                            );
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              width: 80,
-                              height: 80,
-                              color: Colors.grey[300],
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            );
-                          },
-                        )
-                      : Container(
-                          width: 80,
-                          height: 80,
-                          color: Colors.grey[300],
-                          child: const Icon(
-                            Icons.image_not_supported,
-                            size: 30,
-                          ),
-                        ),
-                ),
-
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.star, size: 12, color: Colors.amber),
-                        const SizedBox(width: 3),
-                        Text(
-                          rating.toStringAsFixed(1),
-                          style: GoogleFonts.roboto(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                '${ApiConfig.baseUrl.replaceAll('/api', '')}${destination.image}',
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
+              ),
             ),
-
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      widget.category,
-                      style: GoogleFonts.roboto(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      ),
+                  Text(
+                    destination.name,
+                    style: GoogleFonts.roboto(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -352,15 +269,6 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
                     style: GoogleFonts.roboto(
                       fontSize: 12,
                       color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    destination.name,
-                    style: GoogleFonts.roboto(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -374,11 +282,7 @@ class _CategoryDestinationScreenState extends State<CategoryDestinationScreen> {
                 ],
               ),
             ),
-            SvgPicture.asset(
-              "assets/icons/arrow_next.svg",
-              width: 34,
-              height: 34,
-            ),
+            SvgPicture.asset("assets/icons/arrow_next.svg", width: 34),
           ],
         ),
       ),

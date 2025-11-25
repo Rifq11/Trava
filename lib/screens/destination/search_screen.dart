@@ -10,7 +10,10 @@ import '../../utils/api_config.dart';
 import 'detail_destination_screen.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  final int? categoryId;
+  final String? category;
+
+  const SearchScreen({super.key, this.categoryId, this.category});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -56,26 +59,27 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _performSearch(String query) async {
-    if (query.isEmpty) return;
-
     setState(() {
       _isLoading = true;
       _hasSearched = true;
     });
 
     try {
-      final destinations = await DestinationService.searchDestinations(query);
+      final results = await DestinationService.searchDestinations(query);
+
+      final filtered = widget.categoryId == null
+          ? results
+          : results.where((d) => d.categoryId == widget.categoryId).toList();
+
       setState(() {
-        _searchResults = destinations;
+        _searchResults = filtered;
         _isLoading = false;
       });
-      _loadRatingsForDestinations(destinations);
+
+      _loadRatingsForDestinations(filtered);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
     }
   }
 
@@ -109,7 +113,6 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Column(
           children: [
             const SizedBox(height: 24),
-
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
@@ -171,8 +174,6 @@ class _SearchScreenState extends State<SearchScreen> {
                             color: AppColors.textSecondary,
                           ),
                           border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
                         ),
                         style: GoogleFonts.roboto(
                           fontSize: 14,
@@ -218,20 +219,18 @@ class _SearchScreenState extends State<SearchScreen> {
                               vertical: 16,
                             ),
                             itemCount: _searchResults.length,
-                            itemBuilder: (context, index) {
-                              final destination = _searchResults[index];
+                            itemBuilder: (_, i) {
+                              final destination = _searchResults[i];
                               final rating =
                                   _destinationRatings[destination.id] ?? 0.0;
+
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 14),
-                                child: _buildSearchResultCard(
-                                  destination,
-                                  rating,
-                                ),
+                                child: _buildCard(destination, rating),
                               );
                             },
                           )
-                  : const SizedBox.shrink(), // kosong sebelum search
+                  : const SizedBox.shrink(),
             ),
 
             const SizedBox(height: 24),
@@ -241,7 +240,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildSearchResultCard(Destination destination, double rating) {
+  Widget _buildCard(Destination destination, double rating) {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
@@ -269,62 +268,12 @@ class _SearchScreenState extends State<SearchScreen> {
             SizedBox(
               width: 80,
               height: 80,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: destination.image.isNotEmpty
-                        ? Image.network(
-                            "${ApiConfig.baseUrl.replaceAll('/api', '')}${destination.image}",
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.grey[300],
-                              child: const Center(
-                                child: Icon(
-                                  Icons.image_not_supported,
-                                  size: 30,
-                                ),
-                              ),
-                            ),
-                          )
-                        : Container(
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(Icons.image_not_supported, size: 30),
-                            ),
-                          ),
-                  ),
-                  Positioned(
-                    bottom: 4,
-                    right: 4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 12),
-                          const SizedBox(width: 2),
-                          Text(
-                            rating.toStringAsFixed(1),
-                            style: GoogleFonts.roboto(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  "${ApiConfig.baseUrl.replaceAll('/api', '')}${destination.image}",
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -332,14 +281,26 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    destination.location,
-                    style: GoogleFonts.roboto(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                  if (widget.category != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        widget.category!,
+                        style: GoogleFonts.roboto(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     destination.name,
                     style: GoogleFonts.roboto(

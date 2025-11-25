@@ -56,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       Center(child: TravaLogo.size(size: 48)),
 
-                      const SizedBox(height: 210),
+                      const SizedBox(height: 240),
 
                       const Align(
                         alignment: Alignment.centerLeft,
